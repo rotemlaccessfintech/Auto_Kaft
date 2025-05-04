@@ -10,6 +10,7 @@ A **desktop application** built with **Electron and React (Vite)** for managing 
 - Timer persistence across application restarts (using localStorage).
 - System tray icon with hover tooltip showing current environment status (based on last `kaft status` check).
 - Modern UI with Chakra UI.
+- Option to start automatically with Windows.
 
 ## Demo
 
@@ -62,6 +63,21 @@ A **desktop application** built with **Electron and React (Vite)** for managing 
     - Starts the Electron application, which will load the frontend from the Vite server.
 
 The application will launch in an Electron window.
+
+## Setting Up Auto-Start on Windows
+
+To make the application start automatically when you log into Windows:
+
+1. Run the setup script:
+   ```bash
+   powershell -ExecutionPolicy Bypass -File setup-startup.ps1
+   ```
+
+2. The script will create a shortcut in your Windows Startup folder that will launch the application when you log in.
+
+To remove the auto-start behavior:
+1. Open the Startup folder (Press Win + R, type `shell:startup`, and press Enter)
+2. Delete the "CLI-Command-UI" shortcut
 
 ## Project Structure
 
