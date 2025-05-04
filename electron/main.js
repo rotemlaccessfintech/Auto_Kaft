@@ -1,10 +1,21 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const electron = require("electron");
+const app = electron.app;
+const BrowserWindow = electron.BrowserWindow;
+const ipcMain = electron.ipcMain;
+const Tray = electron.Tray;
+const Menu = electron.Menu;
+
 const path = require("path");
 const { exec } = require("child_process");
 
+let mainWindow = null;
+let tray = null;
+
+const iconPath = path.join(__dirname, '../assets/icon.png');
+
 function createWindow() {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -52,6 +63,25 @@ function createWindow() {
 
   // Start the loading process after a short initial delay (e.g., 3 seconds)
   setTimeout(loadUrlWithRetry, 3000);
+
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    mainWindow.hide();
+    console.log('[Main Process] Window minimized to tray.');
+  });
+
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      console.log('[Main Process] Window closed to tray.');
+    }
+  });
+
+  mainWindow.on('closed', () => {
+    console.log('[Main Process] Main window closed event (might not happen if always hiding).');
+    mainWindow = null;
+  });
 }
 
 // This method will be called when Electron has finished
@@ -60,35 +90,82 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
+  try {
+    tray = new Tray(iconPath);
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Show App',
+        click: () => {
+          console.log('[Tray] Show App clicked.');
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          } else {
+            console.log('[Tray] Window not found, attempting to recreate.');
+            createWindow();
+          }
+        }
+      },
+      {
+        label: 'Quit',
+        click: () => {
+          console.log('[Tray] Quit clicked.');
+          app.isQuitting = true;
+          app.quit();
+        }
+      }
+    ]);
+
+    tray.setToolTip('Auto Kaft');
+    tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+      console.log('[Tray] Tray icon clicked.');
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.focus();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+
+    console.log('[Main Process] Tray icon created successfully.');
+
+  } catch (error) {
+    console.error('[Main Process] Failed to create tray icon:', error);
+    console.error(`[Main Process] Ensure an icon exists at: ${iconPath}`);
+  }
+
   app.on("activate", function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (mainWindow === null) {
+      createWindow();
+    } else if (!mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 
-  // Handle the 'execute-command' request from the renderer process
   ipcMain.handle("execute-command", async (event, env) => {
     const command = `kaft env ${env}`;
-    console.log(`[Main Process] Executing command: ${command}`); // Log for debugging
+    console.log(`[Main Process] Executing command: ${command}`);
 
     return new Promise((resolve) => {
-      // Add a timeout for safety
       exec(
         command,
         { timeout: 60000, shell: true },
         (error, stdout, stderr) => {
-          // 60 second timeout for env command
           if (error) {
             console.error(
               `[Main Process] Error executing command ${command}: ${error.message}`
             );
-            // Send back an object indicating failure and the error message
             resolve({ success: false, error: error.message, stderr: stderr });
           } else {
             console.log(`[Main Process] Command ${command} successful. Output:
 ${stdout}`);
-            // Send back an object indicating success and include the stdout
-            resolve({ success: true, output: stdout, stderr: stderr }); // Ensure output is included
+            resolve({ success: true, output: stdout, stderr: stderr });
           }
         }
       );
@@ -96,11 +173,18 @@ ${stdout}`);
   });
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on("window-all-closed", function () {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin") {
+    console.log('[App] window-all-closed event triggered. App continues running in tray.');
+  }
+});
+
+app.on('before-quit', () => {
+  console.log('[App] before-quit event: Cleaning up tray...');
+  if (tray && !tray.isDestroyed()) {
+    tray.destroy();
+  }
+  tray = null;
 });
 
 // In this file, you can include the rest of your app's specific main process

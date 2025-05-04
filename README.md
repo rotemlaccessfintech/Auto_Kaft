@@ -1,4 +1,4 @@
-# CLI Command UI
+# Auto Kaft
 
 A **desktop application** built with **Electron and React (Vite)** for managing CLI commands (specifically `kaft env` and `kaft status`) with timers for different environments.
 
@@ -61,7 +61,7 @@ The application will launch in an Electron window.
 ## Project Structure
 
 ```
-cli-command-ui/
+auto-kaft/
 ├── electron/             # Electron Main process files
 │   ├── main.js           # Main process entry point, handles window creation and IPC
 │   └── preload.js        # Exposes Node/Electron APIs securely to the Renderer

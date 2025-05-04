@@ -40,7 +40,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Electron app to manage kaft environments with timers.",
   "devDependencies": {
     "@vitejs/plugin-react": "^4.4.1",
     "concurrently": "^9.1.2",

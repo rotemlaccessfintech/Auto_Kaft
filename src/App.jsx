@@ -11,6 +11,7 @@ import {
   useToast,
   Tooltip,
   IconButton,
+  Progress,
 } from "@chakra-ui/react";
 import { RepeatIcon } from "@chakra-ui/icons";
 
@@ -256,201 +257,189 @@ function App() {
 
   // Updated handleCommandClick
   const handleCommandClick = async (env) => {
-    console.log(`[App HandleClick] Clicked ${env}.`);
-    setActiveTimers((prev) => ({ ...prev, [env]: Date.now() }));
-    setKaftStatusData((prev) => ({ ...prev, loading: true, error: null })); // Show loading
+    console.log(`[App Handle Click] Button clicked for env: ${env}`);
+    setKaftStatusData((prev) => ({ ...prev, loading: true, error: null })); // Set loading for this specific env
 
     try {
+      console.log(`[App Handle Click] Calling electronAPI.executeCommand for ${env}`);
+      const result = await window.electronAPI.executeCommand(env);
       console.log(
-        `[App HandleClick] Calling electronAPI.executeCommand for ${env}`
+        `[App Handle Click] Result from executeCommand for ${env}:`,
+        result
       );
-      const data = await window.electronAPI.executeCommand(env);
-      console.log(`[App HandleClick] executeCommand result for ${env}:`, data);
 
-      if (!data || !data.success) {
-        throw new Error(
-          data?.error || data?.stderr || "Failed to execute command"
-        );
-      }
+      if (result.success) {
+        toast({
+          title: `Command '${env}' executed`,
+          description: "Status might take a moment to update.",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
 
-      let updatedAppsMap = {};
-
-      // Parse the output from the successful command to find the friendly name AND the new status
-      if (data.output) {
-        const { appsList, appsMap } = parseKaftStatus(data.output);
-        updatedAppsMap = appsMap; // Get the status directly from this command's output
-
-        if (appsList.length > 0) {
-          const lastApp = appsList[appsList.length - 1];
-          const friendlyName = lastApp.name;
-          console.log(
-            `[App HandleClick] Identified friendly name for ${env} as ${friendlyName} (last entry).`
-          );
-          setEnvNameMapping((prev) => ({ ...prev, [env]: friendlyName }));
+        // --- MODIFY TIMER START FOR DEV-NEW START ---
+        // Start the UI timer *only* if the environment is NOT 'dev-new'
+        if (env !== "dev-new") {
+          const now = Date.now();
+          setActiveTimers((prev) => ({ ...prev, [env]: now }));
+          console.log(`[App Handle Click] UI timer started for ${env} at ${now}`);
         } else {
-          console.warn(
-            `[App HandleClick] No apps found in kaft env ${env} output to determine friendly name.`
+          console.log(
+            `[App Handle Click] Skipping UI timer start for special env: ${env}`
           );
         }
+        // --- MODIFY TIMER START FOR DEV-NEW END ---
+
+        // --- Trigger status update after successful command ---
+        setTimeout(fetchAndUpdateKaftStatus, 1500); // Add a small delay
       } else {
-        console.warn(
-          `[App HandleClick] No output received from kaft env ${env} command.`
+        toast({
+          title: `Command '${env}' failed`,
+          description: result.error || "Unknown error",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        console.error(
+          `[App Handle Click] executeCommand failed for ${env}:`,
+          result.error,
+          result.stderr
         );
-        // If no output, we might need to fetch status separately as a fallback?
-        // For now, we'll just show potentially stale data.
       }
-
-      // Directly update the status data with the parsed map from the command output
-      console.log(
-        "[App HandleClick] Updating kaftStatusData directly with parsed output:",
-        updatedAppsMap
-      );
-      setKaftStatusData({ loading: false, apps: updatedAppsMap, error: null });
-
-      toast({
-        title: "Command Executed",
-        description: `"kaft env ${env}" finished. Status updated.`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-
-      // REMOVED: await fetchAndUpdateKaftStatus(); // Don't fetch separately
     } catch (error) {
-      console.error(
-        `[App HandleClick] Error executing command for ${env}:`,
-        error
-      );
-      setActiveTimers((prev) => {
-        const newTimers = { ...prev };
-        delete newTimers[env];
-        return newTimers;
-      });
-      // Keep previous app data but set loading false and show error
-      setKaftStatusData((prev) => ({
-        ...prev,
-        loading: false,
-        error: `Command failed: ${error.message}`,
-      }));
       toast({
-        title: "Command Failed",
-        description: error.message,
+        title: "IPC Error",
+        description: `Failed to send command for ${env}: ${error.message}`,
         status: "error",
         duration: 5000,
         isClosable: true,
       });
+      console.error(
+        `[App Handle Click] IPC error calling executeCommand for ${env}:`,
+        error
+      );
+    } finally {
+      setKaftStatusData((prev) => ({ ...prev, loading: false })); // Clear loading for this env
     }
   };
 
   // Updated render control to use mapping and descriptions
   const renderEnvironmentControl = (env, colorScheme) => {
-    const uiTimerStart = activeTimers[env];
-    const isUiTimerRunning =
-      !!uiTimerStart && Date.now() - uiTimerStart < FOUR_HOURS_MS;
-    const uiElapsedTime = isUiTimerRunning ? Date.now() - uiTimerStart : 0;
-
-    // Get display name using the forward mapping (populated on click)
-    const displayName = envNameMapping[env] || env;
-
-    // Look up status using the short name (env) directly
-    const verifiedAppData = kaftStatusData.apps[env];
-    const isVerifiedActive = !!verifiedAppData;
-
-    let indicatorColor = "gray.400";
-    let statusText = "Unknown";
-    let detailText = "";
-    const showSpinner = kaftStatusData.loading;
-
-    // --- ADD DESCRIPTION TO TOOLTIP START ---
+    const commandLoading = kaftStatusData.loading;
+    const isTimerActive = !!activeTimers[env]; // UI timer state
+    const kaftStatus = kaftStatusData.apps[env]; // Get status from kaft status check
     const description = envDescriptions[env] || "No description available.";
-    let statusTooltip = `Description: ${description}`;
-    // --- ADD DESCRIPTION TO TOOLTIP END ---
 
-    if (!kaftStatusData.loading && kaftStatusData.error) {
-      indicatorColor = "orange.400";
-      statusText = "Status Error";
-      detailText = kaftStatusData.error.substring(0, 30);
-      // Prepend error to tooltip
-      statusTooltip = `Error: ${kaftStatusData.error}\n${statusTooltip}`;
-    } else if (!kaftStatusData.loading) {
-      if (isVerifiedActive) {
-        indicatorColor = "green.500";
-        statusText = "Active";
-        detailText = `Remaining: ${verifiedAppData.remaining}`;
-        // Prepend active status info to tooltip
-        let activeStatusInfo = `Status for: ${verifiedAppData.name} (Active)`;
-        if (verifiedAppData.expiresAt) {
-          const expiryDate = new Date(
-            parseInt(verifiedAppData.expiresAt) * 1000
-          );
-          activeStatusInfo += ` - Expires: ${expiryDate.toLocaleString()}`;
-        }
-        statusTooltip = `${activeStatusInfo}\n${statusTooltip}`;
-      } else {
-        indicatorColor = "red.500";
-        statusText = "Inactive";
-        detailText = "";
-        // Prepend inactive status info to tooltip
-        statusTooltip = `Status for: ${displayName} (Inactive)\n${statusTooltip}`;
-      }
+    // --- MODIFY STATUS DISPLAY LOGIC START ---
+    // Determine real activity based on kaft status *only*.
+    // The UI timer (isTimerActive) is now separate.
+    const isKaftActive = !!kaftStatus; // Active if present in kaft status output
+
+    // --- HIDE TIMER DISPLAY FOR DEV-NEW START ---
+    // Determine if we should *display* the timer UI elements
+    const shouldDisplayTimer = isTimerActive && env !== "dev-new";
+    // --- HIDE TIMER DISPLAY FOR DEV-NEW END ---
+
+    let remainingTimeStr = "";
+    // --- ADD PROGRESS CALCULATION START ---
+    let progressPercent = 0;
+    // --- ADD PROGRESS CALCULATION END ---
+
+    if (shouldDisplayTimer) {
+      const startTime = activeTimers[env];
+      const elapsed = Date.now() - startTime;
+      const remainingMs = FOUR_HOURS_MS - elapsed;
+      remainingTimeStr =
+        remainingMs > 0 ? formatElapsedTime(remainingMs) : "Expired";
+      // --- ADD PROGRESS CALCULATION START ---
+      // Calculate progress percentage, ensuring it stays between 0 and 100
+      progressPercent = Math.max(0, Math.min(100, (elapsed / FOUR_HOURS_MS) * 100));
+      // --- ADD PROGRESS CALCULATION END ---
     }
 
-    // Add UI timer display if relevant and no other detail text
-    if (isUiTimerRunning && !detailText) {
-      detailText = `UI Elapsed: ${formatElapsedTime(uiElapsedTime)}`;
-    }
+    // --- MODIFY STATUS DISPLAY LOGIC END ---
 
     return (
-      <HStack
+      <Box
         key={env}
-        w="100%"
-        justify="space-between"
-        p={3}
-        bg={`${colorScheme}.100`}
+        p={5}
+        shadow="md"
+        borderWidth="1px"
         borderRadius="md"
-        boxShadow="sm"
-        alignItems="flex-start"
+        w="100%"
+        bg={`${colorScheme}.50`} // Use Chakra color scheme nuances
+        opacity={commandLoading ? 0.7 : 1}
+        position="relative" // Needed for absolute positioning of badge/spinner
       >
-        <HStack alignItems="flex-start">
-          <Tooltip
-            label={statusTooltip}
-            aria-label="Status and description tooltip"
-            whiteSpace="pre-line"
-            placement="top-start"
-          >
+        <HStack justify="space-between" align="center">
+          <HStack spacing={4} align="center">
+            {/* Status Indicator */}
             <Box
-              w="10px"
-              h="10px"
-              bg={indicatorColor}
+              w="12px"
+              h="12px"
               borderRadius="full"
-              mt={2.5}
+              bg={isKaftActive ? "green.500" : "red.500"} // Status based on kaft status
+              title={isKaftActive ? "Active in 'kaft status'" : "Inactive in 'kaft status'"}
             />
-          </Tooltip>
-          <VStack align="flex-start" spacing={0}>
+            {/* Command Info */}
+            <VStack align="start" spacing={0}>
+              <Text fontWeight="bold" fontSize="lg">
+                kaft env {env}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                {description}
+              </Text>
+            </VStack>
+          </HStack>
+
+          {/* Right Side: Timer/Status Badge/Button */}
+          <VStack align="end" spacing={1} minW="160px"> {/* Added minW for better alignment */}
+            {/* --- MODIFY BADGE DISPLAY FOR DEV-NEW START --- */}
+            {/* Show Active/Inactive badge only if NOT 'dev-new' OR if 'dev-new' and timer shouldn't be displayed */}
+            {shouldDisplayTimer ? (
+              <Badge colorScheme="green" variant="solid" alignSelf="flex-end">
+                ACTIVE
+              </Badge>
+            ) : env !== "dev-new" ? ( // Only show Inactive badge for non-dev-new envs
+              <Badge colorScheme="red" variant="outline" alignSelf="flex-end">
+                INACTIVE
+              </Badge>
+            ) : null /* Do not show any badge for dev-new */}
+            {/* Show Remaining time and Progress bar only if timer display is enabled */}
+            {shouldDisplayTimer && (
+              <VStack align="end" spacing={1} w="100%">
+                <Text fontSize="sm" color="gray.700">
+                  Remaining: {remainingTimeStr}
+                </Text>
+                {/* --- ADD PROGRESS BAR START --- */}
+                <Progress
+                  value={progressPercent}
+                  size="xs"
+                  colorScheme={colorScheme} // Match the button color
+                  w="100%" // Take full width of the VStack
+                  borderRadius="sm"
+                  hasStripe
+                  isAnimated={progressPercent < 100} // Animate only while active
+                  aria-label={`Timer progress for ${env}`}
+                />
+                {/* --- ADD PROGRESS BAR END --- */}
+              </VStack>
+            )}
+            {/* --- MODIFY BADGE DISPLAY FOR DEV-NEW END --- */}
+
             <Button
               colorScheme={colorScheme}
-              variant="ghost"
               onClick={() => handleCommandClick(env)}
-              isLoading={showSpinner && !!activeTimers[env] && !verifiedAppData}
-              isDisabled={showSpinner}
-              size="md"
+              isLoading={commandLoading}
+              isDisabled={kaftStatusData.loading} // Disable if global status is loading
+              size="sm"
+              variant="outline"
             >
-              kaft env {displayName}
+              Run `kaft env {env}`
             </Button>
-            <Text fontSize="xs" color="gray.600" pl={4}>
-              {description}
-            </Text>
           </VStack>
         </HStack>
-        <VStack align="flex-end" spacing={0}>
-          <Badge colorScheme={isVerifiedActive ? "green" : "red"}>
-            {statusText}
-          </Badge>
-          <Text fontSize="xs" color="gray.600">
-            {detailText}
-          </Text>
-        </VStack>
-      </HStack>
+      </Box>
     );
   };
 
@@ -476,7 +465,7 @@ function App() {
         >
           <HStack w="100%" justify="space-between" mb={2}>
             <Text fontSize="xl" fontWeight="bold">
-              CLI Command Interface
+              Auto Kaft
             </Text>
             <Tooltip label="Refresh Status" aria-label="Refresh Status Button">
               <IconButton
