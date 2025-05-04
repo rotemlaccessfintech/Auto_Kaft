@@ -1,0 +1,3 @@
+@echo off
+echo Starting Development Environment (Vite + Electron)...
+npm run electron:start 

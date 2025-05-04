@@ -15,24 +15,36 @@ function createWindow() {
   });
 
   // Load the React development server URL.
-  const targetURL = 'http://localhost:5173';
+  const targetURL = "http://localhost:5173";
   const maxRetries = 10;
   let retries = 0;
 
   const loadUrlWithRetry = () => {
-    console.log(`[Main Process] Attempting to load URL: ${targetURL} (Attempt ${retries + 1}/${maxRetries})`);
-    mainWindow.loadURL(targetURL)
+    console.log(
+      `[Main Process] Attempting to load URL: ${targetURL} (Attempt ${
+        retries + 1
+      }/${maxRetries})`
+    );
+    mainWindow
+      .loadURL(targetURL)
       .then(() => {
         console.log(`[Main Process] Successfully loaded URL: ${targetURL}`);
       })
-      .catch(err => {
-        console.error(`[Main Process] Failed to load URL (Attempt ${retries + 1}/${maxRetries}):`, err);
+      .catch((err) => {
+        console.error(
+          `[Main Process] Failed to load URL (Attempt ${
+            retries + 1
+          }/${maxRetries}):`,
+          err
+        );
         retries++;
         if (retries < maxRetries) {
           // Wait 2 seconds before retrying
           setTimeout(loadUrlWithRetry, 2000);
         } else {
-          console.error(`[Main Process] Max retries reached. Failed to load URL: ${targetURL}`);
+          console.error(
+            `[Main Process] Max retries reached. Failed to load URL: ${targetURL}`
+          );
           // Optionally, show an error message to the user or quit
         }
       });
@@ -40,9 +52,6 @@ function createWindow() {
 
   // Start the loading process after a short initial delay (e.g., 3 seconds)
   setTimeout(loadUrlWithRetry, 3000);
-
-  // Open the DevTools (optional)
-  mainWindow.webContents.openDevTools();
 }
 
 // This method will be called when Electron has finished
@@ -64,18 +73,25 @@ app.whenReady().then(() => {
 
     return new Promise((resolve) => {
       // Add a timeout for safety
-      exec(command, { timeout: 60000, shell: true }, (error, stdout, stderr) => { // 60 second timeout for env command
-        if (error) {
-          console.error(`[Main Process] Error executing command ${command}: ${error.message}`);
-          // Send back an object indicating failure and the error message
-          resolve({ success: false, error: error.message, stderr: stderr });
-        } else {
-          console.log(`[Main Process] Command ${command} successful. Output:
+      exec(
+        command,
+        { timeout: 60000, shell: true },
+        (error, stdout, stderr) => {
+          // 60 second timeout for env command
+          if (error) {
+            console.error(
+              `[Main Process] Error executing command ${command}: ${error.message}`
+            );
+            // Send back an object indicating failure and the error message
+            resolve({ success: false, error: error.message, stderr: stderr });
+          } else {
+            console.log(`[Main Process] Command ${command} successful. Output:
 ${stdout}`);
-          // Send back an object indicating success and include the stdout
-          resolve({ success: true, output: stdout, stderr: stderr }); // Ensure output is included
+            // Send back an object indicating success and include the stdout
+            resolve({ success: true, output: stdout, stderr: stderr }); // Ensure output is included
+          }
         }
-      });
+      );
     });
   });
 });
@@ -101,10 +117,14 @@ ipcMain.handle("check-status", async (event) => {
   return new Promise((resolve) => {
     exec(command, { timeout: 7000, shell: true }, (error, stdout, stderr) => {
       if (error) {
-        console.error(`[Main Process] Generic status check command failed: ${error.message}`);
+        console.error(
+          `[Main Process] Generic status check command failed: ${error.message}`
+        );
         resolve({ success: false, error: error.message, stderr: stderr });
       } else {
-        console.log(`[Main Process] Generic status check successful. Outputting stdout.`);
+        console.log(
+          `[Main Process] Generic status check successful. Outputting stdout.`
+        );
         resolve({ success: true, output: stdout });
       }
     });

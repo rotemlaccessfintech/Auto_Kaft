@@ -32,4 +32,4 @@ ENV DBUS_SYSTEM_BUS_ADDRESS=unix:path=/dev/null
 # EXPOSE 3000
 
 # Command to run the app using Xvfb
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1024x768x16 & npm start"] 
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1024x768x16 & npm run electron:start"] 
