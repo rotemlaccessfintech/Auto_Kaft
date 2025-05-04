@@ -171,6 +171,19 @@ ${stdout}`);
       );
     });
   });
+
+  // --- ADD IPC HANDLER FOR TOOLTIP START ---
+  ipcMain.handle("update-tooltip", (event, tooltipText) => {
+    if (tray && !tray.isDestroyed()) {
+      console.log(`[Main Process] Updating tooltip to: "${tooltipText}"`);
+      tray.setToolTip(tooltipText);
+      return { success: true }; // Acknowledge the update
+    } else {
+      console.warn("[Main Process] Tray not available or destroyed, cannot update tooltip.");
+      return { success: false, error: "Tray not available" };
+    }
+  });
+  // --- ADD IPC HANDLER FOR TOOLTIP END ---
 });
 
 app.on("window-all-closed", function () {

@@ -8,6 +8,7 @@ A **desktop application** built with **Electron and React (Vite)** for managing 
 - Check `kaft status`.
 - Automatic 4-hour timers for each environment activation.
 - Timer persistence across application restarts (using localStorage).
+- System tray icon with hover tooltip showing current environment status (based on last `kaft status` check).
 - Modern UI with Chakra UI.
 
 ## Demo

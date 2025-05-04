@@ -94,6 +94,24 @@ const parseKaftStatus = (output) => {
 };
 // --- MODIFY PARSER END ---
 
+// --- ADD TOOLTIP HELPER START ---
+const generateTooltipText = (appsStatus) => {
+  const baseText = "Auto Kaft";
+  if (!appsStatus || typeof appsStatus !== "object") {
+    return `${baseText} - Status Unknown`;
+  }
+  const activeEnvs = Object.entries(appsStatus)
+    .filter(([key, value]) => value && value.name) // Check if the environment has data (is active in status)
+    .map(([key, value]) => value.name); // Get the friendly name from status data
+
+  if (activeEnvs.length > 0) {
+    return `${baseText} - Active: ${activeEnvs.join(", ")}`;
+  } else {
+    return `${baseText} - Idle`;
+  }
+};
+// --- ADD TOOLTIP HELPER END ---
+
 function App() {
   // UI Timer state (when was 'kaft env' clicked)
   const [activeTimers, setActiveTimers] = useState(() => {
@@ -255,13 +273,47 @@ function App() {
     fetchAndUpdateKaftStatus();
   }, [fetchAndUpdateKaftStatus]); // Depend on the memoized function
 
+  // --- ADD TOOLTIP UPDATE EFFECT START ---
+  useEffect(() => {
+    const tooltipText = generateTooltipText(kaftStatusData.apps);
+    console.log("[App Effect Tooltip] Generated tooltip text:", tooltipText);
+    if (
+      window.electronAPI &&
+      typeof window.electronAPI.updateTooltip === "function"
+    ) {
+      window.electronAPI
+        .updateTooltip(tooltipText)
+        .then((result) => {
+          if (!result.success) {
+            console.warn(
+              "[App Effect Tooltip] Main process failed to update tooltip:",
+              result.error
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(
+            "[App Effect Tooltip] Error sending tooltip update IPC:",
+            error
+          );
+        });
+    } else {
+      console.warn(
+        "[App Effect Tooltip] electronAPI.updateTooltip not available yet."
+      );
+    }
+  }, [kaftStatusData.apps]); // Re-run whenever the status data changes
+  // --- ADD TOOLTIP UPDATE EFFECT END ---
+
   // Updated handleCommandClick
   const handleCommandClick = async (env) => {
     console.log(`[App Handle Click] Button clicked for env: ${env}`);
     setKaftStatusData((prev) => ({ ...prev, loading: true, error: null })); // Set loading for this specific env
 
     try {
-      console.log(`[App Handle Click] Calling electronAPI.executeCommand for ${env}`);
+      console.log(
+        `[App Handle Click] Calling electronAPI.executeCommand for ${env}`
+      );
       const result = await window.electronAPI.executeCommand(env);
       console.log(
         `[App Handle Click] Result from executeCommand for ${env}:`,
@@ -282,7 +334,9 @@ function App() {
         if (env !== "dev-new") {
           const now = Date.now();
           setActiveTimers((prev) => ({ ...prev, [env]: now }));
-          console.log(`[App Handle Click] UI timer started for ${env} at ${now}`);
+          console.log(
+            `[App Handle Click] UI timer started for ${env} at ${now}`
+          );
         } else {
           console.log(
             `[App Handle Click] Skipping UI timer start for special env: ${env}`
@@ -353,7 +407,10 @@ function App() {
         remainingMs > 0 ? formatElapsedTime(remainingMs) : "Expired";
       // --- ADD PROGRESS CALCULATION START ---
       // Calculate progress percentage, ensuring it stays between 0 and 100
-      progressPercent = Math.max(0, Math.min(100, (elapsed / FOUR_HOURS_MS) * 100));
+      progressPercent = Math.max(
+        0,
+        Math.min(100, (elapsed / FOUR_HOURS_MS) * 100)
+      );
       // --- ADD PROGRESS CALCULATION END ---
     }
 
@@ -379,7 +436,11 @@ function App() {
               h="12px"
               borderRadius="full"
               bg={isKaftActive ? "green.500" : "red.500"} // Status based on kaft status
-              title={isKaftActive ? "Active in 'kaft status'" : "Inactive in 'kaft status'"}
+              title={
+                isKaftActive
+                  ? "Active in 'kaft status'"
+                  : "Inactive in 'kaft status'"
+              }
             />
             {/* Command Info */}
             <VStack align="start" spacing={0}>
@@ -393,18 +454,22 @@ function App() {
           </HStack>
 
           {/* Right Side: Timer/Status Badge/Button */}
-          <VStack align="end" spacing={1} minW="160px"> {/* Added minW for better alignment */}
+          <VStack align="end" spacing={1} minW="160px">
+            {" "}
+            {/* Added minW for better alignment */}
             {/* --- MODIFY BADGE DISPLAY FOR DEV-NEW START --- */}
             {/* Show Active/Inactive badge only if NOT 'dev-new' OR if 'dev-new' and timer shouldn't be displayed */}
-            {shouldDisplayTimer ? (
-              <Badge colorScheme="green" variant="solid" alignSelf="flex-end">
-                ACTIVE
-              </Badge>
-            ) : env !== "dev-new" ? ( // Only show Inactive badge for non-dev-new envs
-              <Badge colorScheme="red" variant="outline" alignSelf="flex-end">
-                INACTIVE
-              </Badge>
-            ) : null /* Do not show any badge for dev-new */}
+            {
+              shouldDisplayTimer ? (
+                <Badge colorScheme="green" variant="solid" alignSelf="flex-end">
+                  ACTIVE
+                </Badge>
+              ) : env !== "dev-new" ? ( // Only show Inactive badge for non-dev-new envs
+                <Badge colorScheme="red" variant="outline" alignSelf="flex-end">
+                  INACTIVE
+                </Badge>
+              ) : null /* Do not show any badge for dev-new */
+            }
             {/* Show Remaining time and Progress bar only if timer display is enabled */}
             {shouldDisplayTimer && (
               <VStack align="end" spacing={1} w="100%">
@@ -426,7 +491,6 @@ function App() {
               </VStack>
             )}
             {/* --- MODIFY BADGE DISPLAY FOR DEV-NEW END --- */}
-
             <Button
               colorScheme={colorScheme}
               onClick={() => handleCommandClick(env)}
@@ -485,20 +549,54 @@ function App() {
 
           {/* --- ADD DEBUG OUTPUT START --- */}
           {(rawStatusOutput !== null || parsedStatusMap !== null) && (
-            <Box w="100%" mt={6} p={4} bg="gray.50" borderRadius="md" border="1px solid" borderColor="gray.200">
-              <Text fontWeight="bold" mb={2}>Debug Info:</Text>
+            <Box
+              w="100%"
+              mt={6}
+              p={4}
+              bg="gray.50"
+              borderRadius="md"
+              border="1px solid"
+              borderColor="gray.200"
+            >
+              <Text fontWeight="bold" mb={2}>
+                Debug Info:
+              </Text>
               {rawStatusOutput !== null && (
                 <Box mb={3}>
-                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Raw 'kaft status' Output:</Text>
-                  <Box as="pre" whiteSpace="pre-wrap" wordBreak="break-all" p={2} bg="gray.100" borderRadius="sm" fontSize="xs" maxHeight="200px" overflowY="auto">
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>
+                    Raw 'kaft status' Output:
+                  </Text>
+                  <Box
+                    as="pre"
+                    whiteSpace="pre-wrap"
+                    wordBreak="break-all"
+                    p={2}
+                    bg="gray.100"
+                    borderRadius="sm"
+                    fontSize="xs"
+                    maxHeight="200px"
+                    overflowY="auto"
+                  >
                     {rawStatusOutput}
                   </Box>
                 </Box>
               )}
               {parsedStatusMap !== null && (
                 <Box>
-                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Parsed Status Map:</Text>
-                  <Box as="pre" whiteSpace="pre-wrap" wordBreak="break-all" p={2} bg="gray.100" borderRadius="sm" fontSize="xs" maxHeight="200px" overflowY="auto">
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>
+                    Parsed Status Map:
+                  </Text>
+                  <Box
+                    as="pre"
+                    whiteSpace="pre-wrap"
+                    wordBreak="break-all"
+                    p={2}
+                    bg="gray.100"
+                    borderRadius="sm"
+                    fontSize="xs"
+                    maxHeight="200px"
+                    overflowY="auto"
+                  >
                     {JSON.stringify(parsedStatusMap, null, 2)}
                   </Box>
                 </Box>
@@ -506,7 +604,6 @@ function App() {
             </Box>
           )}
           {/* --- ADD DEBUG OUTPUT END --- */}
-
         </VStack>
       </Box>
     </ChakraProvider>

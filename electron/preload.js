@@ -13,7 +13,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Sends a message to the main process via the 'check-status' channel
     // and returns a Promise that resolves with the main process's response.
     return ipcRenderer.invoke('check-status');
+  },
+  // --- ADD TOOLTIP FUNCTION START ---
+  updateTooltip: (tooltipText) => {
+    // Sends the text to the main process via the 'update-tooltip' channel.
+    return ipcRenderer.invoke('update-tooltip', tooltipText);
   }
+  // --- ADD TOOLTIP FUNCTION END ---
 });
 
 console.log('Preload script loaded.'); // For debugging 
