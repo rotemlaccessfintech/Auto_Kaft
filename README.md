@@ -10,6 +10,10 @@ A **desktop application** built with **Electron and React (Vite)** for managing 
 - Timer persistence across application restarts (using localStorage).
 - Modern UI with Chakra UI.
 
+## Demo
+
+![Auto Kaft Demo](./assets/demo.png)
+
 ## Prerequisites
 
 - Node.js 16 or higher
