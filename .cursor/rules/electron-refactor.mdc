@@ -1,0 +1,22 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Project Overview and Electron Refactoring Goal
+
+This project is currently a web application built with React for the frontend and Node.js (Express) for the backend.
+
+## Current Key Files:
+- **Frontend:** Managed via `npm start` (using `react-scripts`). The main UI component is likely in `[src/App.js](mdc:src/App.js)`.
+- **Backend:** A simple Express server in `[server.js](mdc:server.js)` handles API requests (specifically `/execute-command`).
+- **Configuration:** `[package.json](mdc:package.json)` defines dependencies and scripts.
+
+## Refactoring Goal:
+Convert this web application into an Electron desktop application.
+
+- **Electron Main Process:** A new main process file (e.g., `electron/main.js`) will be created to manage the application lifecycle and host backend logic.
+- **Backend Logic Migration:** The command execution logic from `[server.js](mdc:server.js)` will be moved into the Electron main process.
+- **Frontend Integration:** The React application will run as the renderer process within Electron.
+- **Communication:** Inter-Process Communication (IPC) will be used for the frontend (renderer) to communicate with the backend logic (main process).
+- **UI:** The UI will be updated to function as a desktop widget, potentially with system tray integration and status indicators.
