@@ -1,0 +1,10 @@
+node_modules
+.git
+.vscode
+Dockerfile
+docker-compose.yml
+*.log
+
+# Optional: Ignore build output if not needed in final image
+/dist
+/out 

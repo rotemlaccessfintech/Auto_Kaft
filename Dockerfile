@@ -12,20 +12,16 @@ RUN apk add --no-cache \
     chromium \
     xvfb
 
-# Copy package.json and package-lock.json (if available)
-COPY package*.json ./
+# Copy only package.json to leverage Docker cache
+COPY package.json ./
 
-# Attempt to fix optional dependency issue with rollup on alpine/musl
-RUN npm install --no-save @rollup/rollup-linux-x64-musl
-
-# Install project dependencies
+# Install project dependencies (will generate a lockfile specific to the container env)
 RUN npm install
 
-# Copy the rest of the application code
+# Copy the rest of the application code (respecting .dockerignore)
 COPY . .
 
-# Build the application (if needed)
-# Assuming your build script is 'npm run build'
+# Build the application
 RUN npm run build
 
 # Set display port and dbus environment variables for Xvfb
